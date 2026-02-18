@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: barker-dashboard
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: WS_STATIC_MODE
+        value: "1"
+      - key: WS_LIVE_QUOTES
+        value: "0"

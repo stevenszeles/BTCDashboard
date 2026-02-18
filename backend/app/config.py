@@ -5,8 +5,11 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 # Load .env from repo root for local/dev runs (no-op if missing)
+# Avoid loading .env in production so platform env vars (Render/Railway) are authoritative.
 _ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
-load_dotenv(_ENV_PATH, override=False)
+_ENVIRONMENT = os.environ.get("ENVIRONMENT", "").strip().lower()
+if _ENVIRONMENT not in {"production", "prod"}:
+    load_dotenv(_ENV_PATH, override=False)
 
 
 @dataclass
@@ -48,7 +51,8 @@ class Settings:
         # Live quote toggle (kept separate from marketdata_only)
         self.live_quotes = os.environ.get("WS_LIVE_QUOTES", "1") == "1"
         # Static mode: no live market data, use uploaded balances/positions
-        self.static_mode = os.environ.get("WS_STATIC_MODE", "0") == "1"
+        # Default to static to avoid external network dependencies unless explicitly enabled.
+        self.static_mode = os.environ.get("WS_STATIC_MODE", "1") == "1"
 
         # Logging / method metadata
         self.log_path = os.environ.get("WS_LOG_PATH", "workstation.log")

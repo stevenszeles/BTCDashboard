@@ -26,20 +26,36 @@ except Exception:
 
 app = FastAPI(title="Workstation", docs_url=None, redoc_url=None)
 
+def _is_local_origin(origin: str) -> bool:
+    lowered = (origin or "").lower()
+    return "localhost" in lowered or "127.0.0.1" in lowered
+
+
 allow_all = os.getenv("WS_ALLOW_ALL_ORIGINS", "0") == "1"
-if not allow_all and settings.static_mode and not os.getenv("ALLOWED_ORIGINS"):
-    allow_all = True
+raw_origins = os.getenv(
+    "ALLOWED_ORIGINS",
+    "https://localhost:8000,https://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173",
+)
+allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+
+# Render exposes the external URL/hostname for the service; allow it by default.
+render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+render_host = os.getenv("RENDER_EXTERNAL_HOSTNAME", "").strip()
+if render_url:
+    allowed_origins.append(render_url)
+if render_host:
+    allowed_origins.append(f"https://{render_host}")
+
+# De-dupe while preserving order
+allowed_origins = list(dict.fromkeys(allowed_origins))
+
+if not allow_all and settings.static_mode:
+    # If only local origins are configured (or none), default to allow-all in static mode.
+    if not allowed_origins or all(_is_local_origin(origin) for origin in allowed_origins):
+        allow_all = True
+
 if allow_all:
     allowed_origins = ["*"]
-else:
-    allowed_origins = [
-        origin.strip()
-        for origin in os.getenv(
-            "ALLOWED_ORIGINS",
-            "https://localhost:8000,https://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173",
-        ).split(",")
-        if origin.strip()
-    ]
 
 app.add_middleware(
     CORSMiddleware,

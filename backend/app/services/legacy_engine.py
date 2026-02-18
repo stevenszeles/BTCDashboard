@@ -561,6 +561,8 @@ def ensure_symbol_history(symbol: str, start_date: str, is_bench: bool = False) 
     symbol = (symbol or "").strip().upper()
     if not symbol:
         return False
+    if settings.static_mode:
+        return last_cached_close(symbol) is not None
     start_iso = parse_iso_date(start_date) or year_start_date()
     if is_option_symbol(symbol):
         return last_cached_close(symbol) is not None
@@ -581,7 +583,10 @@ def ensure_symbol_history(symbol: str, start_date: str, is_bench: bool = False) 
         need_refetch = True
 
     if need_refetch:
-        history = _fetch_history_primary(symbol, start_iso, is_bench)
+        try:
+            history = _fetch_history_primary(symbol, start_iso, is_bench)
+        except Exception:
+            history = []
         if history:
             _overwrite_price_cache(symbol, start_iso, history)
 
@@ -589,6 +594,8 @@ def ensure_symbol_history(symbol: str, start_date: str, is_bench: bool = False) 
 
 
 def fetch_prices_incremental(symbol: str, lookback_iso: str, is_bench: bool = False) -> bool:
+    if settings.static_mode:
+        return last_cached_close(symbol) is not None
     try:
         last_date = _get_last_price_date(symbol)
         if last_date:
@@ -1800,7 +1807,10 @@ def submit_multi(legs: List[Dict[str, Any]], strategy_id: Optional[str], strateg
 # ----------------------------
 
 def _stamp() -> Dict[str, Any]:
-    source = "demo" if settings.demo_mode else "local" if settings.marketdata_only else "schwab"
+    if settings.static_mode:
+        source = "static"
+    else:
+        source = "demo" if settings.demo_mode else "local" if settings.marketdata_only else "schwab"
     return {"asof": now_ts_str(), "source": source, "method_version": settings.method_version}
 
 
@@ -2313,7 +2323,7 @@ def clear_nav_history(account: Optional[str] = None) -> Dict[str, Any]:
 
 def start_background_price_updates() -> None:
     global BACKGROUND_UPDATE_THREAD, STOP_BACKGROUND_UPDATES
-    if not settings.live_quotes:
+    if settings.static_mode or not settings.live_quotes:
         return
     if BACKGROUND_UPDATE_THREAD and BACKGROUND_UPDATE_THREAD.is_alive():
         return

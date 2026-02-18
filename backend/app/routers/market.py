@@ -24,6 +24,8 @@ def _require_polygon():
 
 @router.get("/snapshot")
 def snapshot(symbols: str):
+    if settings.static_mode:
+        return {"source": "static", "tickers": []}
     sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not sym_list:
         return {"source": "unavailable", "tickers": []}
@@ -80,18 +82,24 @@ def snapshot(symbols: str):
 
 @router.get("/aggregates")
 def aggregates(symbol: str, multiplier: int, timespan: str, from_date: str, to_date: str):
+    if settings.static_mode:
+        raise HTTPException(status_code=400, detail="Static mode enabled; live market data disabled")
     _require_polygon()
     return polygon.get_aggregates(symbol.upper(), multiplier, timespan, from_date, to_date)
 
 
 @router.get("/previous-close")
 def previous_close(symbol: str):
+    if settings.static_mode:
+        raise HTTPException(status_code=400, detail="Static mode enabled; live market data disabled")
     _require_polygon()
     return polygon.get_previous_close(symbol.upper())
 
 
 @router.get("/status")
 def market_status():
+    if settings.static_mode:
+        return {"market": "static", "source": "static"}
     if settings.demo_mode:
         raise HTTPException(status_code=400, detail="Demo mode enabled; live market data disabled")
     if settings.marketdata_only:
@@ -106,6 +114,8 @@ def market_status():
 
 @router.get("/options-chain")
 def options_chain(underlying: str):
+    if settings.static_mode:
+        return {"underlying": underlying, "contracts": []}
     if settings.demo_mode:
         return {"underlying": underlying, "contracts": options_service.get_option_chain_demo(underlying.upper())}
     if settings.marketdata_only:
@@ -132,6 +142,8 @@ def options_chain(underlying: str):
 def option_marks(symbols: str):
     sym_list = [s.strip().upper() for s in symbols.split(",") if s.strip()]
     if not sym_list:
+        return {}
+    if settings.static_mode:
         return {}
     if settings.demo_mode:
         marks: Dict[str, float] = {}
@@ -165,6 +177,8 @@ def option_marks(symbols: str):
 
 @router.get("/futures-ladder")
 def futures_ladder():
+    if settings.static_mode:
+        return {"contracts": []}
     if settings.demo_mode:
         return {"contracts": futures_service.get_futures_ladder_demo()}
     return {"contracts": futures_service.get_futures_ladder()}
@@ -173,6 +187,10 @@ def futures_ladder():
 @router.websocket("/stream")
 async def stream(websocket: WebSocket):
     await websocket.accept()
+    if settings.static_mode:
+        await websocket.send_text(json.dumps({"type": "error", "message": "Static mode enabled"}))
+        await websocket.close()
+        return
     if settings.demo_mode:
         await websocket.send_text(json.dumps({"type": "error", "message": "Demo mode enabled"}))
         await websocket.close()
