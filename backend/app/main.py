@@ -27,6 +27,8 @@ except Exception:
 app = FastAPI(title="Workstation", docs_url=None, redoc_url=None)
 
 allow_all = os.getenv("WS_ALLOW_ALL_ORIGINS", "0") == "1"
+if not allow_all and settings.static_mode and not os.getenv("ALLOWED_ORIGINS"):
+    allow_all = True
 if allow_all:
     allowed_origins = ["*"]
 else:
