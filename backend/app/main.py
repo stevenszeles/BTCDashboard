@@ -26,19 +26,23 @@ except Exception:
 
 app = FastAPI(title="Workstation", docs_url=None, redoc_url=None)
 
-allowed_origins = [
-    origin.strip()
-    for origin in os.getenv(
-        "ALLOWED_ORIGINS",
-        "https://localhost:8000,https://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173",
-    ).split(",")
-    if origin.strip()
-]
+allow_all = os.getenv("WS_ALLOW_ALL_ORIGINS", "0") == "1"
+if allow_all:
+    allowed_origins = ["*"]
+else:
+    allowed_origins = [
+        origin.strip()
+        for origin in os.getenv(
+            "ALLOWED_ORIGINS",
+            "https://localhost:8000,https://127.0.0.1:8000,http://localhost:8000,http://127.0.0.1:8000,http://localhost:5173",
+        ).split(",")
+        if origin.strip()
+    ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=False if allow_all else True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
     max_age=600,
